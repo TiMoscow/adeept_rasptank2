@@ -7,6 +7,8 @@ from flask_cors import *
 import camera_opencv
 from camera_opencv import Camera
 import threading
+from gpiozero import TonalBuzzer
+from time import sleep
 
 # Raspberry Pi camera module (requires picamera package)
 # from camera_pi import Camera
@@ -14,6 +16,45 @@ import threading
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 camera = Camera()
+
+# Buzzer on GPIO18
+_buzzer = TonalBuzzer(18)
+_buzzer_lock = threading.Lock()
+_buzzer_stop_event = threading.Event()
+
+def _play_notes(notes):
+    _buzzer_stop_event.clear()
+    with _buzzer_lock:
+        for note, dur in notes:
+            if _buzzer_stop_event.is_set():
+                break
+            if note:
+                _buzzer.play(note)
+            sleep(dur)
+            _buzzer.stop()
+            sleep(0.05)
+
+@app.route('/api/buzzer/beep')
+def buzzer_beep():
+    threading.Thread(target=_play_notes, args=([("C5", 0.3)],), daemon=True).start()
+    return "beep"
+
+@app.route('/api/buzzer/song')
+def buzzer_song():
+    song = [
+        ["G4", 0.3], ["G4", 0.3], ["A4", 0.3], ["G4", 0.3], ["C5", 0.3], ["B4", 0.6],
+        ["G4", 0.3], ["G4", 0.3], ["A4", 0.3], ["G4", 0.3], ["D5", 0.3], ["C5", 0.6],
+        ["G4", 0.3], ["G4", 0.3], ["C5", 0.3], ["B4", 0.3], ["C5", 0.3], ["B4", 0.3], ["A4", 0.6],
+        ["F5", 0.3], ["F5", 0.3], ["B4", 0.3], ["C5", 0.3], ["D5", 0.3], ["C5", 0.6]
+    ]
+    threading.Thread(target=_play_notes, args=(song,), daemon=True).start()
+    return "playing"
+
+@app.route('/api/buzzer/stop')
+def buzzer_stop():
+    _buzzer_stop_event.set()
+    _buzzer.stop()
+    return "stopped"
 
 def gen(camera):
     """Video streaming generator function."""

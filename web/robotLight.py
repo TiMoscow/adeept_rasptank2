@@ -6,7 +6,10 @@
 import time
 import sys
 from gpiozero import PWMOutputDevice as PWM
-from rpi_ws281x import *
+try:
+    from rpi_ws281x import *
+except (ImportError, OSError):
+    pass
 import threading
 import spidev
 import numpy
