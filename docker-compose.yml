@@ -1,0 +1,20 @@
+services:
+  rasptank:
+    build: .
+    container_name: rasptank_web
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    volumes:
+      - /run/udev:/run/udev:ro
+      - /sys:/sys
+      - /dev:/dev
+      - .:/app/adeept_rasptank2:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GPIOZERO_PIN_FACTORY=lgpio
+      # lgpio кладет pipe .lgd-* в рабочую папку, а она у нас смонтирована
+      # в проект на Windows. Переносим во временную папку контейнера.
+      - LG_WD=/tmp
+    working_dir: /app/adeept_rasptank2
+    command: ["python3", "web/WebServer.py"]
