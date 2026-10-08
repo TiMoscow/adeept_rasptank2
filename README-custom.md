@@ -34,6 +34,7 @@ curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5000/
 - Зуммер писк: `http://<IP_хоста>:5000/api/buzzer/beep`
 - Зуммер песня: `http://<IP_хоста>:5000/api/buzzer/song`
 - Зуммер стоп: `http://<IP_хоста>:5000/api/buzzer/stop`
+- Переворот камеры на 180°: `POST http://<IP_хоста>:5000/api/camera/flip` (GET - текущее состояние)
 - WebSocket управления: `ws://<IP_хоста>:8888`
 
 ## Управление контейнером
@@ -68,7 +69,7 @@ docker exec -it rasptank_web bash
 ├── docker-compose.yml      # privileged, host network, LG_WD=/tmp
 ├── .dockerignore           # .git и мусор не попадают в образ
 ├── README.md               # Оригинальный README с GitHub. НЕ ТРОГАТЬ
-├── README-rasptank.md      # Этот файл
+├── README-custom.md        # Этот файл
 ├── examples/               # Примеры с роботом (оригинал)
 ├── Client/                 # GUI-клиент (оригинал)
 └── web/                    # Код веб-интерфейса
@@ -94,7 +95,9 @@ docker exec -it rasptank_web bash
 - `web/app.py` - эндпоинты зуммера `/api/buzzer/beep`, `/api/buzzer/song`, `/api/buzzer/stop`. Стоп мелодии через `threading.Event`
 - `web/robotLight.py` - `try/except` вокруг `from rpi_ws281x import *`, чтобы код запускался там, где библиотеки нет
 - `web/switch.py` - урезан под робота
-- `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `README-rasptank.md` - Docker-обвязка, в оригинале таких файлов нет
+- `web/camera_opencv.py` - переворот кадра на 180° через `cv2.flip` (флаг `flip180`, состояние в файле `.camera_flip`, переживает рестарт). Для камеры, закрепленной шлейфом вверх ногами
+- `web/dist/index.html` - кнопка «180°» в интерфейсе, переключает переворот через `/api/camera/flip`
+- `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `README-custom.md` - Docker-обвязка, в оригинале таких файлов нет
 
 ## Git
 
@@ -110,7 +113,7 @@ git fetch upstream
 git merge upstream/master
 ```
 
-Конфликты возможны максимум на трех кастомных файлах (`app.py`, `robotLight.py`, `switch.py`), остальное сливается само.
+Конфликты возможны максимум на четырех кастомных файлах (`app.py`, `robotLight.py`, `switch.py`, `camera_opencv.py`), остальное сливается само.
 
 Свой код коммитить и пушить только в `custom`:
 

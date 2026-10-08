@@ -40,6 +40,29 @@ forward_speed = 50 # Avoid too fast, the video screen does not respond in time. 
 APPMode = None
 hflip = 0 # Video flip horizontally: 0 or 1 
 vflip = 0 # Video vertical flip: 0/1 
+
+# Переворот кадра на180 градусов: камера закреплена шлейфом вверх ногами,
+# а картинка должна быть нормальной. Состояние храним в файле, чтобы
+# переживало рестарт контейнера.
+_FLIP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.camera_flip')
+
+def _flip_read():
+    try:
+        with open(_FLIP_FILE) as f:
+            return f.read().strip() == '1'
+    except OSError:
+        return False
+
+flip180 = _flip_read()
+
+def flip_set(value):
+    global flip180
+    flip180 = bool(value)
+    try:
+        with open(_FLIP_FILE, 'w') as f:
+            f.write('1' if flip180 else '0')
+    except OSError:
+        pass
 ImgIsNone = 0
 
 colorUpper = np.array([44, 255, 255])
@@ -533,6 +556,11 @@ class Camera(BaseCamera):
             start_time = time.time()
             # read current frame
             img = picam2.capture_array()
+
+            # Переворачиваем сразу после захвата, чтобы CV-алгоритмы
+            # и картинка в интерфейсе видели одинаково исправленный кадр
+            if img is not None and flip180:
+                img = cv2.flip(img, -1)
 
             if img is None:
                 if ImgIsNone == 0:

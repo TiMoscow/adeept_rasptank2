@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from importlib import import_module
 import os
-from flask import Flask, render_template, Response, send_from_directory
+from flask import Flask, render_template, Response, send_from_directory, request
 from flask_cors import *
 # import camera driver
 import camera_opencv
@@ -55,6 +55,13 @@ def buzzer_stop():
     _buzzer_stop_event.set()
     _buzzer.stop()
     return "stopped"
+
+@app.route('/api/camera/flip', methods=['GET', 'POST'])
+def camera_flip():
+    # GET - текущее состояние, POST - переключить переворот камеры на180
+    if request.method == 'POST':
+        camera_opencv.flip_set(not camera_opencv.flip180)
+    return {"flip": int(camera_opencv.flip180)}
 
 def gen(camera):
     """Video streaming generator function."""

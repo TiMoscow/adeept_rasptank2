@@ -4,3 +4,4 @@ __pycache__/
 *.bak
 .lgd-*
 .idea/
+.camera_flip
