@@ -127,15 +127,15 @@ git push origin custom
 3. Включить I2C и SPI: `sudo raspi-config` -> Interface Options
 4. Настроить камеру в `/boot/firmware/config.txt`:
 
-```ini
+```text
 [pi5]
 dtoverlay=ov5647
 dtoverlay=nospi10
 dtoverlay=dwc2,dr_mode=peripheral
 ```
 
-5. Склонировать репозиторий в `<путь_к_клону_репозитория>`
-6. Собрать и запустить (см. Быстрый старт)
+1. Склонировать репозиторий в `<путь_к_клону_репозитория>`
+2. Собрать и запустить (см. Быстрый старт)
 
 ## Автозапуск
 
