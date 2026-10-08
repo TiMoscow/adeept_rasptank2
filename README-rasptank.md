@@ -2,10 +2,18 @@
 
 Docker-контейнер для управления танком Adeept RaspTank ADR013-V4 на Raspberry Pi 5.
 
+Проект без привязки к путям: везде ниже используются плейсхолдеры.
+При установке подставляйте свои значения:
+
+- `<путь_к_клону_репозитория>` - где склонирован этот репозиторий
+- `<IP_хоста>` - IP-адрес Pi в локальной сети
+- `<URL_репозитория>` - адрес твоего репозитория на GitHub
+- `<пользователь>` - системный пользователь, от которого работает Docker
+
 ## Быстрый старт
 
 ```bash
-cd /home/opencode/docker_my/rasptank
+cd <путь_к_клону_репозитория>
 
 # Собрать образ (первый раз, 10-20 минут)
 docker compose build
@@ -21,11 +29,12 @@ curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5000/
 
 ## Доступ
 
-- Веб-интерфейс: `http://192.168.50.177:5000`
-- Видеопоток: `http://192.168.50.177:5000/video_feed`
-- Зуммер писк: `http://192.168.50.177:5000/api/buzzer/beep`
-- Зуммер песня: `http://192.168.50.177:5000/api/buzzer/song`
-- Зуммер стоп: `http://192.168.50.177:5000/api/buzzer/stop`
+- Веб-интерфейс: `http://<IP_хоста>:5000`
+- Видеопоток: `http://<IP_хоста>:5000/video_feed`
+- Зуммер писк: `http://<IP_хоста>:5000/api/buzzer/beep`
+- Зуммер песня: `http://<IP_хоста>:5000/api/buzzer/song`
+- Зуммер стоп: `http://<IP_хоста>:5000/api/buzzer/stop`
+- WebSocket управления: `ws://<IP_хоста>:8888`
 
 ## Управление контейнером
 
@@ -51,19 +60,23 @@ docker exec -it rasptank_web bash
 
 Если пользователь не в группе `docker`, добавлять `sudo` перед каждой командой.
 
-## Структура
+## Структура репозитория
 
 ```
-rasptank/
+<путь_к_клону_репозитория>/
 ├── Dockerfile              # Сборка образа (debian:trixie + RPi-репо)
-├── docker-compose.yml      # privileged, host network, lgpio factory
-├── README.md               # Этот файл
-└── adeept_rasptank2/       # Код робота (volume mount)
-    └── web/
-        ├── WebServer.py    # Точка входа, WebSocket 8888
-        ├── app.py          # Flask, порт 5000, зуммер-эндпоинты
-        ├── robotLight.py   # Пропатчен (try/except для rpi_ws281x)
-        └── ...
+├── docker-compose.yml      # privileged, host network, LG_WD=/tmp
+├── .dockerignore           # .git и мусор не попадают в образ
+├── README.md               # Оригинальный README с GitHub. НЕ ТРОГАТЬ
+├── README-rasptank.md      # Этот файл
+├── examples/               # Примеры с роботом (оригинал)
+├── Client/                 # GUI-клиент (оригинал)
+└── web/                    # Код веб-интерфейса
+    ├── WebServer.py        # Точка входа, WebSocket 8888
+    ├── app.py              # Flask, порт 5000, зуммер-эндпоинты
+    ├── robotLight.py       # Пропатчен (try/except для rpi_ws281x)
+    ├── switch.py           # Урезан под робота
+    └── dist/               # Фронтенд (Vue)
 ```
 
 ## Что внутри контейнера
@@ -74,11 +87,45 @@ rasptank/
 - lgpio из системного пакета RPi-репо (не pip)
 - Камера, I2C, SPI доступны через privileged + host network
 
+## Кастомные правки
+
+Все свое живет только в ветке `custom`:
+
+- `web/app.py` - эндпоинты зуммера `/api/buzzer/beep`, `/api/buzzer/song`, `/api/buzzer/stop`. Стоп мелодии через `threading.Event`
+- `web/robotLight.py` - `try/except` вокруг `from rpi_ws281x import *`, чтобы код запускался там, где библиотеки нет
+- `web/switch.py` - урезан под робота
+- `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `README-rasptank.md` - Docker-обвязка, в оригинале таких файлов нет
+
+## Git
+
+- `origin` = `<URL_репозитория>` (приватный, твой)
+- `upstream` = <https://github.com/adeept/adeept_rasptank2> (оригинал)
+- Рабочая ветка: `custom`
+- `master` - зеркало оригинала, обновляется из `upstream`
+
+Обновление из оригинала:
+
+```bash
+git fetch upstream
+git merge upstream/master
+```
+
+Конфликты возможны максимум на трех кастомных файлах (`app.py`, `robotLight.py`, `switch.py`), остальное сливается само.
+
+Свой код коммитить и пушить только в `custom`:
+
+```bash
+git add <файлы>
+git commit -m "описание"
+git push origin custom
+```
+
 ## Перед запуском на новой системе
 
 1. Установить Docker: `curl -fsSL https://get.docker.com | sudo sh`
-2. Включить I2C и SPI: `sudo raspi-config` -> Interface Options
-3. Настроить камеру в `/boot/firmware/config.txt`:
+2. Добавить пользователя в группу docker: `sudo usermod -aG docker <пользователь>` (после этого перелогиниться)
+3. Включить I2C и SPI: `sudo raspi-config` -> Interface Options
+4. Настроить камеру в `/boot/firmware/config.txt`:
 
 ```ini
 [pi5]
@@ -87,45 +134,30 @@ dtoverlay=nospi10
 dtoverlay=dwc2,dr_mode=peripheral
 ```
 
-4. Скопировать папку `rasptank/` на Pi
-5. Собрать и запустить (см. Быстрый старт)
+5. Склонировать репозиторий в `<путь_к_клону_репозитория>`
+6. Собрать и запустить (см. Быстрый старт)
 
 ## Автозапуск
 
-Создать `/etc/systemd/system/rasptank-docker.service`:
-
-```ini
-[Unit]
-Description=RaspTank Docker Container
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-User=opencode
-WorkingDirectory=/home/opencode/docker_my/rasptank
-ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
-TimeoutStartSec=120
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Включить:
+Двух уровней хватает:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable rasptank-docker.service
+# 1. Docker сам стартует после перезагрузки
+sudo systemctl enable docker
+
+# 2. Контейнер сам поднимается после старта Docker
+#    Это уже прописано в docker-compose.yml:
+#    restart: unless-stopped
 ```
+
+Дополнительный systemd-сервис для контейнера не нужен.
 
 ## Обновление кода
 
 Код смонтирован как volume. Правки на хосте видны сразу, но нужен перезапуск:
 
 ```bash
-nano /home/opencode/docker_my/rasptank/adeept_rasptank2/web/app.py
+nano <путь_к_клону_репозитория>/web/app.py
 docker compose restart
 ```
 
@@ -147,6 +179,8 @@ grep ov5647 /boot/firmware/config.txt
 
 ## Не делать
 
+- Не трогать `README.md`, это оригинальный файл с GitHub
+- Не выносить кастомные правки за пределы ветки `custom`
 - Не запускать WebServer.py на хосте параллельно с контейнером
 - Не запускать серво/моторы с разряженной батареей
 - Не удалять патч robotLight.py
