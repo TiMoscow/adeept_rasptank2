@@ -96,7 +96,9 @@ docker exec -it rasptank_web bash
 - `web/robotLight.py` - `try/except` вокруг `from rpi_ws281x import *`, чтобы код запускался там, где библиотеки нет
 - `web/switch.py` - урезан под робота
 - `web/camera_opencv.py` - переворот кадра на 180° через `cv2.flip` (флаг `flip180`, состояние в файле `.camera_flip`, переживает рестарт). Для камеры, закрепленной шлейфом вверх ногами
-- `web/dist/index.html` - кнопка «180°» в интерфейсе, переключает переворот через `/api/camera/flip`
+- `web/dist/index.html` - кнопка переворота камеры в карточке Video (логика и стили в `web/dist/js/lang.js`)
+- `web/dist/js/lang.js` + `web/dist/lang.json` - перевод интерфейса на русский и кнопка EN|RU в шапке. Исходников фронта нет (только собранный Vue), английский зашит в бандл, русский подменяется поверх DOM, выбор языка помнится в localStorage
+- `web/dist/index.html` - сетка перебалансирована под длинные русские подписи: 5+4+3 вместо 6+4+2, правый столбик с карточкой «Действия» шире. Плюс перенос текста в кнопках как страховка
 - `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `README-custom.md` - Docker-обвязка, в оригинале таких файлов нет
 
 ## Git
