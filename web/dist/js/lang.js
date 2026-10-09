@@ -25,6 +25,15 @@
     ru: ['Перевернуть камеру на 180°', 'Камера перевернута: 180°']
   };
 
+  // Батарея: заголовок и буква вольта
+  var BAT = {
+    en: ['Battery', 'V'],
+    ru: ['Батарея', 'В']
+  };
+  var batChip = null;
+  var batVal = null;
+  var batTimer = null;
+
   function byLenDesc(a, b) { return b.length - a.length; }
 
   // Ключ ищем только целым словом. Иначе короткое "up" подменится внутри
@@ -100,6 +109,7 @@
       markLang();
       trAll();
       setFlipText();
+      paintBat();
     });
   }
 
@@ -144,7 +154,55 @@
     setFlipText();
   }
 
-  function ensureAll() { ensureLangBtn(); ensureFlipBtn(); }
+  function batColor(p) {
+    if (p === null || p === undefined) return 'grey';   // нет данных
+    if (p >= 50) return 'green';
+    if (p >= 20) return 'orange';
+    return 'red';
+  }
+
+  function paintBat() {
+    if (!batChip) return;
+    var t = BAT[lang];
+    var title = batChip.querySelector('.chip-title');
+    if (!title) return;
+    var content = batChip.querySelector('.v-chip__content') || batChip;
+    title.textContent = t[0];
+    // после заголовка оставляем только свое значение, иначе накопится
+    var n = title.nextSibling;
+    while (n) { var nx = n.nextSibling; content.removeChild(n); n = nx; }
+    var ok = batVal && batVal.ok;
+    var text = ok ? (batVal.voltage.toFixed(1) + t[1] + ' ' + batVal.percent + '%') : '--';
+    content.appendChild(document.createTextNode(' ' + text));
+    batChip.classList.remove('green', 'orange', 'red', 'grey');
+    batChip.classList.add(batColor(ok ? batVal.percent : null));
+  }
+
+  function fetchBat() {
+    fetch('/api/battery')
+      .then(function (r) { return r.json(); })
+      .then(function (d) { batVal = d; paintBat(); })
+      .catch(function () { batVal = null; paintBat(); });
+  }
+
+  function ensureBatChip() {
+    // чип клонируем с родного, чтобы вид был один в один
+    var wrap = document.querySelector('.status-wrapper');
+    if (!wrap) return;
+    if (batChip && batChip.parentElement === wrap) return;
+    var sample = wrap.querySelector('.v-chip');
+    if (!sample) return;
+    batChip = sample.cloneNode(true);
+    batChip.id = 'battery-chip';
+    wrap.appendChild(batChip);
+    paintBat();
+    if (!batTimer) {
+      batTimer = setInterval(fetchBat, 5000);
+      fetchBat();
+    }
+  }
+
+  function ensureAll() { ensureLangBtn(); ensureFlipBtn(); ensureBatChip(); }
 
   function start() {
     ensureAll();

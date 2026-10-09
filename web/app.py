@@ -17,6 +17,50 @@ app = Flask(__name__)
 CORS(app, supports_credentials=True)
 camera = Camera()
 
+# --- Батарея: АЦП ADS7830 на I2C 0x48, канал 0. Константы как в родном web/Voltage.py ---
+import statistics
+try:
+    import smbus
+except ImportError:
+    smbus = None
+
+_ADC_ADDR = 0x48
+_ADC_CMD_CH0 = 0x84      # одиночный вход, канал 0
+_ADC_VREF = 5.2          # опорное напряжение
+_ADC_DIV = 0.25          # делитель R17/(R15+R17) = 1к/(3к+1к)
+_BAT_EMPTY = 6.0         # пусто, В (2 банки 18650)
+_BAT_FULL = 8.4          # полный, В
+_adc_bus = None
+_adc_lock = threading.Lock()
+
+def _battery_voltage():
+    # 9 замеров, берем медиану: одиночный выброс не испортит картинку
+    global _adc_bus
+    if smbus is None:
+        return None
+    with _adc_lock:
+        if _adc_bus is None:
+            _adc_bus = smbus.SMBus(1)
+        vals = []
+        for _ in range(9):
+            raw = _adc_bus.read_byte_data(_ADC_ADDR, _ADC_CMD_CH0)
+            vals.append(raw / 255.0 * _ADC_VREF / _ADC_DIV)
+    return statistics.median(vals)
+
+def _battery_percent(v):
+    p = (v - _BAT_EMPTY) / (_BAT_FULL - _BAT_EMPTY) * 100.0
+    return max(0, min(100, int(round(p))))
+
+@app.route('/api/battery')
+def battery():
+    try:
+        v = _battery_voltage()
+    except Exception:
+        v = None
+    if v is None:
+        return {"ok": 0, "voltage": None, "percent": None}
+    return {"ok": 1, "voltage": round(v, 2), "percent": _battery_percent(v)}
+
 # Buzzer on GPIO18
 _buzzer = TonalBuzzer(18)
 _buzzer_lock = threading.Lock()
