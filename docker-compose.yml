@@ -10,11 +10,20 @@ services:
       - /sys:/sys
       - /dev:/dev
       - .:/app/adeept_rasptank2:rw
+      # Папка для фото на хосте. По умолчанию ./photos рядом с compose-файлом.
+      - ${PHOTOS_HOST_DIR:-./photos}:/photos
     environment:
       - PYTHONUNBUFFERED=1
       - GPIOZERO_PIN_FACTORY=lgpio
       # lgpio кладет pipe .lgd-* в рабочую папку, а она у нас смонтирована
       # в проект на Windows. Переносим во временную папку контейнера.
       - LG_WD=/tmp
+      - TZ=Europe/Moscow
+      - PHOTOS_DIR=/photos
+      # Владелец файлов фото на хосте (узнать: id -u и id -g):
+      # - PHOTOS_UID=1000
+      # - PHOTOS_GID=1000
+      # Продолжать съёмку по расписанию после перезапуска контейнера:
+      # - TIMELAPSE_RESUME=1
     working_dir: /app/adeept_rasptank2
     command: ["python3", "web/WebServer.py"]

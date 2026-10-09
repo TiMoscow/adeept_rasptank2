@@ -1,0 +1,196 @@
+/* Панель «Фото и съемка по расписанию». Стиль кнопок как у кнопки «180°». */
+
+/* Собранный стиль RaspTank ставит user-select:none на html, из-за него нельзя
+   выделить ни буквы. Снимаем запрет; кнопки и слайдеры Vuetify остаются
+   невыделяемыми за счет своих локальных правил. */
+html {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+#photo-panel {
+  margin: 10px 0 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, .15);
+  border-radius: 6px;
+  background: #fafafa;
+  color: rgba(0, 0, 0, .87);
+  font: 400 13px/1.35 Roboto, Arial, sans-serif;
+}
+#photo-panel .pp-title {
+  margin: 0 0 6px;
+  font-weight: 500;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+#photo-panel .pp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+#photo-panel .pp-row > span {
+  flex: 0 0 auto;
+  min-width: 70px;
+}
+#photo-panel input,
+#photo-panel select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 0, 0, .25);
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+}
+#photo-panel select {
+  flex: 0 0 auto;
+}
+#photo-panel input:disabled,
+#photo-panel select:disabled {
+  background: #eee;
+  color: rgba(0, 0, 0, .5);
+}
+#photo-panel .pp-btn {
+  display: block;
+  width: 100%;
+  margin: 8px 0 4px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, .15);
+  background: #f5f5f5;
+  color: rgba(0, 0, 0, .87);
+  font: 500 13px/1.2 Roboto, Arial, sans-serif;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .2s, color .2s;
+}
+#photo-panel .pp-btn:disabled {
+  opacity: .6;
+  cursor: default;
+}
+#photo-panel .pp-btn.pp-on {
+  background: #e53935;
+  border-color: #c62828;
+  color: #fff;
+}
+#photo-panel .pp-sep {
+  height: 1px;
+  margin: 12px 0 8px;
+  background: rgba(0, 0, 0, .12);
+}
+#photo-panel .pp-msg,
+#photo-panel .pp-status {
+  margin-top: 4px;
+  word-break: break-all;
+  color: rgba(0, 0, 0, .7);
+}
+#photo-panel .pp-msg:empty {
+  display: none;
+}
+#photo-panel .pp-err,
+#photo-panel .pp-msg.pp-err {
+  color: #c62828;
+}
+#photo-panel .pp-path {
+  margin: 2px 0 6px;
+  color: rgba(0, 0, 0, .55);
+  word-break: break-all;
+}
+#photo-panel .pp-btn.pp-mini {
+  width: auto;
+  margin: 4px 0 4px;
+  padding: 6px 10px;
+  text-transform: none;
+}
+#photo-panel .pp-cur {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px dashed rgba(0, 0, 0, .25);
+  border-radius: 4px;
+  background: #fff;
+  word-break: break-all;
+}
+
+/* Окно выбора папки висит на body, поэтому стили без #photo-panel */
+.pp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .45);
+}
+.pp-modal-box {
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 92vw);
+  max-height: 82vh;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: #fff;
+  color: rgba(0, 0, 0, .87);
+  font: 400 13px/1.35 Roboto, Arial, sans-serif;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
+}
+.pp-modal-head {
+  margin-bottom: 8px;
+  font-weight: 500;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.pp-crumb {
+  margin-bottom: 6px;
+  color: rgba(0, 0, 0, .6);
+  word-break: break-all;
+}
+.pp-list {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 90px;
+  max-height: 42vh;
+  padding: 4px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  border-radius: 4px;
+}
+.pp-item {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pp-item:hover { background: #eef4ff; }
+.pp-empty { padding: 7px 8px; color: rgba(0, 0, 0, .5); }
+.pp-newrow { display: flex; gap: 8px; margin-top: 8px; }
+.pp-newrow input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 0, 0, .25);
+  border-radius: 4px;
+  font: inherit;
+}
+.pp-modal .pp-msg { margin-top: 4px; color: #c62828; }
+.pp-modal .pp-msg:empty { display: none; }
+.pp-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.pp-modal .pp-btn {
+  padding: 7px 14px;
+  border: 1px solid rgba(0, 0, 0, .15);
+  border-radius: 6px;
+  background: #f5f5f5;
+  color: rgba(0, 0, 0, .87);
+  font: 500 13px/1.2 Roboto, Arial, sans-serif;
+  cursor: pointer;
+}
+.pp-modal .pp-btn.pp-ok { background: #2196F3; border-color: #1976D2; color: #fff; }

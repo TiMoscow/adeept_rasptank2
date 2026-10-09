@@ -65,6 +65,15 @@ def flip_set(value):
         pass
 ImgIsNone = 0
 
+# Чистый кадр: после переворота, но до рамок и меток OpenCV. Нужен для фото.
+# frames() каждый раз кладёт сюда новый массив, а не меняет старый на месте.
+_clean_frame = None
+
+def get_clean_frame():
+    """Последний кадр без рисования OpenCV (BGR) или None, пока камера не запустилась.
+    Массив нельзя менять на месте: им пользуются другие потоки."""
+    return _clean_frame
+
 colorUpper = np.array([44, 255, 255])
 colorLower = np.array([24, 100, 100])
 
@@ -526,7 +535,7 @@ class Camera(BaseCamera):
 
     @staticmethod
     def frames():
-        global ImgIsNone,hflip,vflip
+        global ImgIsNone,hflip,vflip,_clean_frame
         picam2 = Picamera2() 
         
         preview_config = picam2.preview_configuration
@@ -575,6 +584,10 @@ class Camera(BaseCamera):
                     ImgIsNone = 1
                 continue
 
+            # Копия до CV-обработки: elementDraw рисует поверх img на месте,
+            # а на фото рамки и метки не нужны.
+            _clean_frame = img.copy()
+
             if Camera.modeSelect == 'none':
                 # switch.switch(1,0)
                 cvt.pause()
@@ -591,6 +604,7 @@ class Camera(BaseCamera):
                 except:
                     pass
             
-            if cv2.imencode('.jpg', img)[0]:
-                yield cv2.imencode('.jpg', img)[1].tobytes()
+            ok, buf = cv2.imencode('.jpg', img)
+            if ok:
+                yield buf.tobytes()
             

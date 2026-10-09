@@ -2,6 +2,8 @@ FROM debian:trixie-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+# tzdata при установке спрашивает часовой пояс: без этого сборка может встать
+ENV DEBIAN_FRONTEND=noninteractive
 
 # RPi-репозиторий для python3-lgpio (пакет только там)
 RUN echo "deb [trusted=yes] http://archive.raspberrypi.com/debian trixie main" > /etc/apt/sources.list.d/raspi.list
@@ -39,6 +41,7 @@ RUN apt-get update && apt-get install -y \
     python3-libcamera \
     python3-picamera2 \
     i2c-tools \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

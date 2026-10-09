@@ -6,6 +6,7 @@ from flask_cors import *
 # import camera driver
 import camera_opencv
 from camera_opencv import Camera
+import photos
 import threading
 from gpiozero import TonalBuzzer
 from time import sleep
@@ -16,6 +17,10 @@ from time import sleep
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 camera = Camera()
+
+# Фото по кнопке и съемка по расписанию (см. photos.py)
+photo_service = photos.PhotoService(camera_opencv.get_clean_frame)
+photo_service.resume_if_needed()
 
 # --- Батарея: АЦП ADS7830 на I2C 0x48, канал 0. Константы как в родном web/Voltage.py ---
 import statistics
@@ -106,6 +111,77 @@ def camera_flip():
     if request.method == 'POST':
         camera_opencv.flip_set(not camera_opencv.flip180)
     return {"flip": int(camera_opencv.flip180)}
+
+def _photo_fail(e):
+    if isinstance(e, photos.PhotoError):
+        return {"ok": False, "error": str(e)}, e.status
+    return {"ok": False, "error": "Ошибка записи: %s" % e}, 500
+
+@app.route('/api/photo', methods=['POST'])
+def photo_take():
+    # Снимок в подпапку PHOTOS_DIR: {"dir": "имя"}; пустое dir - корень папки фото
+    data = request.get_json(silent=True) or {}
+    try:
+        res = photo_service.snapshot(data.get('dir', ''))
+    except (photos.PhotoError, OSError) as e:
+        return _photo_fail(e)
+    return dict(res, ok=True)
+
+@app.route('/api/photo/config')
+def photo_config():
+    return {"base": photos.BASE_DIR, "folders": photos.list_folders(),
+            "settings": photo_service.settings(), "min_free_mb": photos.MIN_FREE_MB}
+
+@app.route('/api/photo/mkdir', methods=['POST'])
+def photo_mkdir():
+    # Создать подпапку внутри PHOTOS_DIR: {"dir": "имя"}
+    data = request.get_json(silent=True) or {}
+    try:
+        rel = photos.make_dir(data.get('dir', ''))
+    except (photos.PhotoError, OSError) as e:
+        return _photo_fail(e)
+    return {"ok": True, "dir": rel, "base": photos.BASE_DIR}
+
+@app.route('/api/photo/folders')
+def photo_folders():
+    # Дочерние папки для окна выбора: /api/photo/folders?dir=подпапка
+    try:
+        items = photos.list_subdirs(request.args.get('dir', ''))
+    except (photos.PhotoError, OSError) as e:
+        return _photo_fail(e)
+    return {"ok": True, "items": items}
+
+@app.route('/api/timelapse/start', methods=['POST'])
+def timelapse_start():
+    data = request.get_json(silent=True) or {}
+    try:
+        st = photo_service.start(data.get('dir', ''), data.get('interval'),
+                                 data.get('max_count', 0), data.get('duration', 0))
+    except (photos.PhotoError, OSError) as e:
+        return _photo_fail(e)
+    return dict(st, ok=True)
+
+@app.route('/api/timelapse/stop', methods=['POST'])
+def timelapse_stop():
+    return dict(photo_service.stop(), ok=True)
+
+@app.route('/api/timelapse/status')
+def timelapse_status():
+    return photo_service.status()
+
+@app.route('/api/photos')
+def photos_list():
+    try:
+        items = photos.list_photos(request.args.get('dir', ''))
+    except (photos.PhotoError, OSError) as e:
+        return _photo_fail(e)
+    return {"ok": True, "items": items}
+
+@app.route('/api/photos/file/<path:filename>')
+def photos_file(filename):
+    # send_from_directory сама отсекает выход за пределы папки (../)
+    return send_from_directory(photos.BASE_DIR, filename,
+                               as_attachment=request.args.get('download') == '1')
 
 def gen(camera):
     """Video streaming generator function."""
