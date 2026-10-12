@@ -5,6 +5,7 @@ __pycache__/
 .lgd-*
 .idea/
 .camera_flip
+.oled_config
 .timelapse.json
 .timelapse.json.tmp
 photos/

@@ -194,3 +194,117 @@ html {
   cursor: pointer;
 }
 .pp-modal .pp-btn.pp-ok { background: #2196F3; border-color: #1976D2; color: #fff; }
+
+/* Панель «Дисплей»: конструктор строк OLED. Стиль как у панели фото. */
+#oled-panel {
+  margin: 10px 0 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, .15);
+  border-radius: 6px;
+  background: #fafafa;
+  color: rgba(0, 0, 0, .87);
+  font: 400 13px/1.35 Roboto, Arial, sans-serif;
+}
+#oled-panel .od-title {
+  margin: 0 0 4px;
+  font-weight: 500;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+#oled-panel .od-hint {
+  margin: 0 0 8px;
+  color: rgba(0, 0, 0, .55);
+}
+#oled-panel .od-addrow {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0;
+}
+#oled-panel .od-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 0, 0, .25);
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+}
+#oled-panel .od-add {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border: 1px solid rgba(0, 0, 0, .15);
+  border-radius: 6px;
+  background: #f5f5f5;
+  color: rgba(0, 0, 0, .87);
+  font: 500 13px/1.2 Roboto, Arial, sans-serif;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+#oled-panel .od-add:disabled {
+  opacity: .6;
+  cursor: default;
+}
+#oled-panel .od-list {
+  margin: 6px 0 0;
+}
+#oled-panel .od-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  border: 1px solid rgba(0, 0, 0, .12);
+  border-radius: 4px;
+  background: #fff;
+}
+#oled-panel .od-num {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 50%;
+  background: #eceff1;
+  color: rgba(0, 0, 0, .6);
+  font-size: 11px;
+}
+#oled-panel .od-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#oled-panel .od-val {
+  flex: 0 0 auto;
+  color: #1976D2;
+  font-variant-numeric: tabular-nums;
+}
+#oled-panel .od-x {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, .15);
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: #c62828;
+  font: 500 16px/1 Roboto, Arial, sans-serif;
+  cursor: pointer;
+}
+#oled-panel .od-x:hover {
+  background: #ffebee;
+}
+#oled-panel .od-empty {
+  padding: 6px 2px;
+  color: rgba(0, 0, 0, .5);
+}
+#oled-panel .od-msg {
+  margin-top: 4px;
+  word-break: break-all;
+  color: rgba(0, 0, 0, .7);
+}
+#oled-panel .od-msg:empty {
+  display: none;
+}
+#oled-panel .od-msg.od-err {
+  color: #c62828;
+}

@@ -7,6 +7,7 @@ from flask_cors import *
 import camera_opencv
 from camera_opencv import Camera
 import photos
+import oled_display
 import threading
 from gpiozero import TonalBuzzer
 from time import sleep
@@ -56,6 +57,16 @@ def _battery_percent(v):
     p = (v - _BAT_EMPTY) / (_BAT_FULL - _BAT_EMPTY) * 100.0
     return max(0, min(100, int(round(p))))
 
+def _battery_str():
+    # строка для OLED: сам дисплей к АЦП не лезет, значение отдаем отсюда
+    try:
+        v = _battery_voltage()
+    except Exception:
+        v = None
+    return '--' if v is None else '%d%%' % _battery_percent(v)
+
+oled_display.register_provider('battery', _battery_str)
+
 @app.route('/api/battery')
 def battery():
     try:
@@ -65,6 +76,17 @@ def battery():
     if v is None:
         return {"ok": 0, "voltage": None, "percent": None}
     return {"ok": 1, "voltage": round(v, 2), "percent": _battery_percent(v)}
+
+@app.route('/api/oled/status')
+def oled_status():
+    # свежие значения и список выбранных строк, его читает панель дисплея
+    return oled_display.get_status()
+
+@app.route('/api/oled/items', methods=['POST'])
+def oled_items():
+    # сохранить набор строк: {"items": ["time", "temp", ...]}, порядок важен
+    data = request.get_json(silent=True) or {}
+    return {"ok": True, "items": oled_display.set_items(data.get('items'))}
 
 # Buzzer on GPIO18
 _buzzer = TonalBuzzer(18)

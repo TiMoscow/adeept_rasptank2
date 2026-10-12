@@ -40,6 +40,7 @@ curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5000/
 - Папки и список снимков: `GET /api/photo/config`, `GET /api/photo/folders?dir=`, `GET /api/photos?dir=`, `GET /api/photos/file/<путь>` (`?download=1` - скачать)
 - Создать папку: `POST /api/photo/mkdir` (тело `{"dir": "подпапка"}`)
 - WebSocket управления: `ws://<IP_хоста>:8888`
+- Дисплей: `GET /api/oled/status` (выбранные строки и текущие значения), `POST /api/oled/items` (тело `{"items": ["time", "temp", ...]}`, порядок пунктов это порядок строк на дисплее)
 
 ## Фото и съемка по расписанию
 
@@ -71,13 +72,14 @@ docker compose up -d --force-recreate
 
 ## OLED-дисплей
 
-На разъеме X1 (I2C) стоит OLED 0.96 дюйма на SSD1306, адрес `0x3C`. Индикатор крутится в фоновом потоке и показывает время, температуру CPU, загрузку памяти и процессора.
+На разъеме X1 (I2C) стоит OLED 0.96 дюйма на SSD1306, адрес `0x3C`. Какие строки показывать, задается в веб-интерфейсе, в панели «Дисплей».
 
-- `web/oled_display.py` - модуль индикации: фоновый поток, обновление раз в 2 секунды
-- `web/WebServer.py` - поток стартует вместе с Flask
-- `Dockerfile` - в pip-список добавлена `adafruit-circuitpython-ssd1306`
-- Температура читается из `/sys/class/thermal/thermal_zone0/temp` (миллиградусы), память и CPU через `psutil`
-- Если дисплей не отвечает на шине, поток тихо завершается, сервер работает дальше
+- Доступные значения: время, дата, температура CPU, память, загрузка CPU, процент батареи, uptime.
+- Порядок строк на экране совпадает с порядком пунктов в панели, первый пункт рисуется вверху. Крестик убирает строку с дисплея.
+- Максимум 8 строк, выше не влезет, экран 64 пикселя высотой.
+- Набор хранится в `web/.oled_config` (JSON-список), переживает рестарт. Нет файла, значит вид по умолчанию: время, температура, память, загрузка CPU.
+- `web/oled_display.py` - фоновый поток, обновление раз в 2 секунды. Если дисплея нет на шине, поток тихо завершается, сервер работает дальше.
+- Температура читается из `/sys/class/thermal/thermal_zone0/temp` (миллиградусы), память и CPU через `psutil`, батарея через тот же код АЦП, что и `/api/battery`.
 
 Проверка дисплея:
 
@@ -128,7 +130,7 @@ docker exec -it rasptank_web bash
     ├── switch.py           # Урезан под робота
     ├── photos.py           # Фото по кнопке и съемка по расписанию
     ├── oled_display.py     # Индикатор на OLED (SSD1306, I2C 0x3C)
-    └── dist/               # Фронтенд (Vue); custom.js и custom.css - наша панель фото
+    └── dist/               # Фронтенд (Vue); custom.js, custom.css и oled.js - наши панели
 ```
 
 ## Что внутри контейнера
@@ -154,7 +156,7 @@ docker exec -it rasptank_web bash
 - `web/app.py` - эндпоинты `/api/photo`, `/api/photo/config`, `/api/photo/mkdir`, `/api/photo/folders`, `/api/timelapse/*`, `/api/photos*`
 - `web/camera_opencv.py` - `get_clean_frame()` (кадр без рамок OpenCV), один `imencode` на кадр вместо двух
 - `web/dist/custom.js`, `web/dist/custom.css`, `web/dist/index.html` - панель фото в интерфейсе, подключена в `index.html`
-- `web/oled_display.py` + `web/WebServer.py` + `Dockerfile` - индикатор на OLED (SSD1306, I2C `0x3C`, разъем X1): время, температура CPU, память, загрузка CPU. Библиотека `adafruit-circuitpython-ssd1306` добавлена в pip-список Dockerfile
+- `web/oled_display.py` + `web/dist/oled.js` + `web/app.py` + `Dockerfile` - индикатор на OLED (SSD1306, I2C `0x3C`, разъем X1) с выбором строк в веб-панели «Дисплей». Набор строк лежит в `.oled_config`, эндпоинты `/api/oled/status` и `/api/oled/items`, библиотека `adafruit-circuitpython-ssd1306` добавлена в pip-список Dockerfile
 - `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `README-custom.md` - Docker-обвязка, в оригинале таких файлов нет
 
 ## Git
