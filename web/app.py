@@ -79,7 +79,7 @@ def battery():
 
 @app.route('/api/oled/status')
 def oled_status():
-    # свежие значения и список выбранных строк, его читает панель дисплея
+    # режим, свежие значения, список строк и настройки, все читает панель дисплея
     return oled_display.get_status()
 
 @app.route('/api/oled/items', methods=['POST'])
@@ -87,6 +87,18 @@ def oled_items():
     # сохранить набор строк: {"items": ["time", "temp", ...]}, порядок важен
     data = request.get_json(silent=True) or {}
     return {"ok": True, "items": oled_display.set_items(data.get('items'))}
+
+@app.route('/api/oled/mode', methods=['POST'])
+def oled_mode():
+    # переключить эксклюзивный режим: {"mode": "eyes"}
+    data = request.get_json(silent=True) or {}
+    return {"ok": True, "mode": oled_display.set_mode(data.get('mode'))}
+
+@app.route('/api/oled/options', methods=['POST'])
+def oled_options():
+    # настройки режимов и реакций: частичный объект, недостающее берем из прошлого
+    data = request.get_json(silent=True) or {}
+    return {"ok": True, "options": oled_display.set_options(data.get('options') or data)}
 
 # Buzzer on GPIO18
 _buzzer = TonalBuzzer(18)

@@ -7,13 +7,18 @@
 
 from gpiozero import DistanceSensor
 from time import sleep
+import threading
 
 Tr = 23
 Ec = 24
 sensor = DistanceSensor(echo=Ec, trigger=Tr,max_distance=2) # Maximum detection distance 2m.
 
+# Замер один на весь робот: движение и экран радара ходят сюда из разных потоков
+_dist_lock = threading.Lock()
+
 def checkdist():
-    return (sensor.distance) *100 # Unit: cm
+    with _dist_lock:
+        return (sensor.distance) *100 # Unit: cm
 
 if __name__ == "__main__":
     while True:

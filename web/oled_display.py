@@ -1,7 +1,8 @@
-# Индикатор на OLED 0.96 (SSD1306, I2C 0x3C).
-# Какие строки показывать, задает веб-панель: список ключей лежит в .oled_config.
-# Порядок ключей это порядок строк сверху вниз. Данные собираются в фоновом
-# потоке, веб забирает их через get_status().
+# Экран OLED 0.96 (SSD1306, I2C 0x3C) как движок с эксклюзивными режимами.
+# Ровно один режим занимает весь дисплей: данные, глаза, радар.
+# Настройки лежат в .oled_config (объект mode/items/options). Поток рендера
+# тикает с частотой кадров, значения собираются реже. Веб читает состояние
+# через get_status() и меняет его set_*().
 
 import json
 import os
@@ -14,20 +15,22 @@ import psutil
 from adafruit_ssd1306 import SSD1306_I2C
 from PIL import Image, ImageDraw, ImageFont
 
+import oled_screens
+import oled_sources
+
 OLED_ADDR = 0x3C
-REFRESH_SEC = 2
+FPS = 15
+COLLECT_SEC = 1.0
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '.oled_config')
 
-# Доступные строки. Порядок здесь это порядок в списке интерфейса.
+# Эксклюзивные режимы: выбран ровно один, остальные недоступны
+MODES = ['data', 'eyes', 'radar']
+DEFAULT_MODE = 'eyes'
+
 AVAILABLE = ['time', 'date', 'temp', 'mem', 'cpu', 'battery', 'uptime']
-
-# Что показываем, пока файла настроек нет
 DEFAULT_ITEMS = ['time', 'temp', 'mem', 'cpu']
-
-# Высота экрана 64 пикселя, строка 8 пикселей
 MAX_ITEMS = 8
 
-# Подписи на самом экране, латиницей: ширины мало
 LABELS = {
     'time': 'TIME',
     'date': 'DATE',
@@ -38,10 +41,21 @@ LABELS = {
     'uptime': 'UP',
 }
 
+DEFAULT_OPTIONS = {
+    'bat_low': 20,        # ниже этого заряда глаза грустят
+    'sleep_after': 120,   # столько секунд без событий и глаза засыпают
+    'react_command': True,
+    'react_obstacle': True,
+    'react_person': True,
+    'obstacle_cm': 30,    # с какого расстояния считать препятствием
+}
+
 _lock = threading.Lock()
+_mode = DEFAULT_MODE
 _items = list(DEFAULT_ITEMS)
-_values = {}      # ключ -> готовое значение
-_providers = {}   # ключ -> функция без аргументов, значения отдает app.py
+_options = dict(DEFAULT_OPTIONS)
+_values = {}
+_providers = {}
 
 
 def register_provider(key, fn):
@@ -49,8 +63,22 @@ def register_provider(key, fn):
     _providers[key] = fn
 
 
+def set_pan_servo(servo):
+    # WebServer отдает серву камеры (канал 2), радар ей сканирует
+    oled_sources.set_pan_servo(servo)
+
+
+def set_idle_probe(fn):
+    # WebServer отдает проверку, что робот не занят своей функцией
+    oled_sources.set_idle_probe(fn)
+
+
+def notify_event(kind):
+    # WebServer дергает при команде из веба; сюда же придут препятствие и человек
+    oled_sources.push_event(kind)
+
+
 def _clean_items(keys):
-    # только известные ключи, без дублей, не больше лимита
     out = []
     for k in keys or []:
         if k in AVAILABLE and k not in out:
@@ -58,21 +86,38 @@ def _clean_items(keys):
     return out[:MAX_ITEMS]
 
 
-def _load_items():
-    global _items
+def _clean_options(data):
+    opts = dict(DEFAULT_OPTIONS)
+    for k in DEFAULT_OPTIONS:
+        if isinstance(data, dict) and k in data:
+            opts[k] = data[k]
+    return opts
+
+
+def _load_config():
+    global _mode, _items, _options
     try:
         with open(CONFIG_PATH) as f:
             data = json.load(f)
     except (OSError, ValueError):
         return
     if isinstance(data, list):
+        # старый формат: просто список строк, значит экран данных
         _items = _clean_items(data)
+        _mode = 'data'
+    elif isinstance(data, dict):
+        if data.get('mode') in MODES:
+            _mode = data['mode']
+        _items = _clean_items(data.get('items', _items))
+        _options = _clean_options(data.get('options'))
 
 
-def _save_items():
+def _save_config():
+    with _lock:
+        payload = {'mode': _mode, 'items': list(_items), 'options': dict(_options)}
     try:
         with open(CONFIG_PATH, 'w') as f:
-            json.dump(_items, f)
+            json.dump(payload, f)
     except OSError:
         pass
 
@@ -80,10 +125,23 @@ def _save_items():
 def get_status():
     with _lock:
         return {
+            'mode': _mode,
+            'modes': list(MODES),
             'items': list(_items),
             'available': list(AVAILABLE),
             'values': dict(_values),
+            'options': dict(_options),
         }
+
+
+def set_mode(mode):
+    global _mode
+    with _lock:
+        if mode in MODES:
+            _mode = mode
+        result = _mode
+    _save_config()
+    return result
 
 
 def set_items(keys):
@@ -91,7 +149,18 @@ def set_items(keys):
     with _lock:
         _items = _clean_items(keys)
         result = list(_items)
-    _save_items()
+    _save_config()
+    return result
+
+
+def set_options(data):
+    global _options
+    with _lock:
+        merged = dict(_options)
+        merged.update(data or {})
+        _options = _clean_options(merged)
+        result = dict(_options)
+    _save_config()
     return result
 
 
@@ -158,27 +227,48 @@ class OledDisplay(threading.Thread):
         img = Image.new('1', (128, 64))
         draw = ImageDraw.Draw(img)
         font = ImageFont.load_default()
+        eyes = oled_screens.EyesScreen()
 
         psutil.cpu_percent(None)  # прогрев: первый вызов всегда 0.0
+        last_collect = 0.0
 
         while not self._stop.is_set():
-            vals = _collect()
+            now = time.time()
             with _lock:
-                _values.clear()
-                _values.update(vals)
-                keys = list(_items)
+                mode = _mode
+                items = list(_items)
+                options = dict(_options)
+
+            if now - last_collect >= COLLECT_SEC:
+                vals = _collect()
+                with _lock:
+                    _values.clear()
+                    _values.update(vals)
+                last_collect = now
+            with _lock:
+                values = dict(_values)
+
+            # наблюдатели поднимаются и гаснут под текущий режим и настройки
+            oled_sources.ensure_watchers(mode, options)
 
             draw.rectangle((0, 0, 127, 63), outline=0, fill=0)
-            n = len(keys)
-            step = max(8, min(16, 60 // n)) if n else 8
-            for i, key in enumerate(keys):
-                text = (LABELS.get(key, key) + ' ' + vals.get(key, '--'))[:21]
-                draw.text((4, 2 + i * step), text, font=font, fill=255)
+            if mode == 'eyes':
+                eyes.feed_events(now, options)
+                eyes.draw(draw, font, now, options, values)
+            elif mode == 'radar':
+                oled_sources.clear_events()
+                points, updated = oled_sources.radar_snapshot()
+                oled_screens.draw_radar(draw, font, points, updated, now)
+            else:
+                oled_sources.clear_events()
+                oled_screens.draw_data(draw, font, items, values, LABELS)
+
             oled.image(img)
             oled.show()
 
-            self._stop.wait(REFRESH_SEC)
+            self._stop.wait(1.0 / FPS)
 
+        oled_sources.stop_watchers()
         try:
             oled.fill(0)
             oled.show()
@@ -186,4 +276,4 @@ class OledDisplay(threading.Thread):
             pass
 
 
-_load_items()
+_load_config()
