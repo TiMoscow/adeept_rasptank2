@@ -53,6 +53,7 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     adafruit-circuitpython-motor \
     adafruit-circuitpython-pca9685 \
     adafruit-circuitpython-ads7830 \
+    adafruit-circuitpython-ssd1306 \
     flask \
     flask_cors \
     numpy \

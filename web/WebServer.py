@@ -15,6 +15,7 @@ import functions
 import robotLight
 import switch
 import socket
+import oled_display
 
 #websocket
 import asyncio
@@ -422,6 +423,9 @@ if __name__ == '__main__':
     global flask_app
     flask_app = app.webapp()
     flask_app.startthread()
+
+    oled = oled_display.OledDisplay()
+    oled.start()
 
     try:
         WS2812_mark = 1
