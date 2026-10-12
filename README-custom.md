@@ -69,6 +69,23 @@ docker compose build
 docker compose up -d --force-recreate
 ```
 
+## OLED-дисплей
+
+На разъеме X1 (I2C) стоит OLED 0.96 дюйма на SSD1306, адрес `0x3C`. Индикатор крутится в фоновом потоке и показывает время, температуру CPU, загрузку памяти и процессора.
+
+- `web/oled_display.py` - модуль индикации: фоновый поток, обновление раз в 2 секунды
+- `web/WebServer.py` - поток стартует вместе с Flask
+- `Dockerfile` - в pip-список добавлена `adafruit-circuitpython-ssd1306`
+- Температура читается из `/sys/class/thermal/thermal_zone0/temp` (миллиградусы), память и CPU через `psutil`
+- Если дисплей не отвечает на шине, поток тихо завершается, сервер работает дальше
+
+Проверка дисплея:
+
+```bash
+# Адрес 0x3C должен быть виден в строке 30
+sg docker -c 'docker exec rasptank_web i2cdetect -y 1'
+```
+
 ## Управление контейнером
 
 ```bash
@@ -110,6 +127,7 @@ docker exec -it rasptank_web bash
     ├── robotLight.py       # Пропатчен (try/except для rpi_ws281x)
     ├── switch.py           # Урезан под робота
     ├── photos.py           # Фото по кнопке и съемка по расписанию
+    ├── oled_display.py     # Индикатор на OLED (SSD1306, I2C 0x3C)
     └── dist/               # Фронтенд (Vue); custom.js и custom.css - наша панель фото
 ```
 
@@ -117,7 +135,7 @@ docker exec -it rasptank_web bash
 
 - Debian 13 trixie (aarch64)
 - Python 3.13
-- Все зависимости: adafruit-blinka, gpiozero, opencv, picamera2, flask, websockets
+- Все зависимости: adafruit-blinka, adafruit-circuitpython-ssd1306, gpiozero, opencv, picamera2, flask, websockets
 - lgpio из системного пакета RPi-репо (не pip)
 - Камера, I2C, SPI доступны через privileged + host network
 
@@ -136,6 +154,7 @@ docker exec -it rasptank_web bash
 - `web/app.py` - эндпоинты `/api/photo`, `/api/photo/config`, `/api/photo/mkdir`, `/api/photo/folders`, `/api/timelapse/*`, `/api/photos*`
 - `web/camera_opencv.py` - `get_clean_frame()` (кадр без рамок OpenCV), один `imencode` на кадр вместо двух
 - `web/dist/custom.js`, `web/dist/custom.css`, `web/dist/index.html` - панель фото в интерфейсе, подключена в `index.html`
+- `web/oled_display.py` + `web/WebServer.py` + `Dockerfile` - индикатор на OLED (SSD1306, I2C `0x3C`, разъем X1): время, температура CPU, память, загрузка CPU. Библиотека `adafruit-circuitpython-ssd1306` добавлена в pip-список Dockerfile
 - `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `README-custom.md` - Docker-обвязка, в оригинале таких файлов нет
 
 ## Git
