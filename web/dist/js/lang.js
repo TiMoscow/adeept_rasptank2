@@ -202,7 +202,82 @@
     }
   }
 
-  function ensureAll() { ensureLangBtn(); ensureFlipBtn(); ensureBatChip(); }
+  // --- Огни робота: четыре положения на одной кнопке ---
+  // В сборке у кнопки два состояния, а нам четыре, поэтому перехватываем
+  // нажатие на фазе захвата и крутим сами. Vue в это время ничего не шлет.
+  var LSTATE = [
+    { cmd: 'ledPolice', cls: 'rl-st0' },  // полиция
+    { cmd: 'ledBreath', cls: 'rl-st1' },  // мигание
+    { cmd: 'ledSteady', cls: 'rl-st2' },  // ровный синий
+    { cmd: 'ledOff',    cls: 'rl-st3' }   // выкл
+  ];
+  var LTEXT = ['POLICE LIGHT', 'Огни робота', 'Полицейские огни'];
+  var lIdx = 1;   // после старта сервер держит мигание, рисуем его
+  var lEl = null; // запомненная кнопка, чтобы не искать на каждый мутацион
+  var lWs = null;
+  var lQ = [];
+
+  function lFlush() {
+    if (!lWs || lWs.readyState !== 1) return;
+    if (!lWs._a) { lWs._a = true; lWs.send('admin:123456'); }
+    while (lQ.length) lWs.send(lQ.shift());
+  }
+
+  function lSend(cmd) {
+    lQ.push(cmd);
+    if (lWs && lWs.readyState === 1) { lFlush(); return; }
+    if (lWs && lWs.readyState === 0) return;   // соединяется, onopen допьет очередь
+    try { lWs = new WebSocket('ws://' + location.hostname + ':8888'); }
+    catch (e) { lWs = null; return; }
+    lWs.onopen = lFlush;
+    lWs.onmessage = function () {};
+    lWs.onerror = function () {};
+    lWs.onclose = function () { lWs = null; };
+  }
+
+  function lIs(btn) {
+    var s = btn.querySelector('.texts');
+    return !!(s && LTEXT.indexOf(s.textContent.trim()) >= 0);
+  }
+
+  function lFind() {
+    var bs = document.querySelectorAll('.v-btn');
+    for (var i = 0; i < bs.length; i++) if (lIs(bs[i])) return bs[i];
+    return null;
+  }
+
+  function lBtn() {
+    if (lEl && document.contains(lEl) && lIs(lEl)) return lEl;
+    lEl = lFind();
+    return lEl;
+  }
+
+  function lPaint() {
+    var b = lBtn();
+    if (!b) return;
+    for (var i = 0; i < LSTATE.length; i++) b.classList.remove(LSTATE[i].cls);
+    b.classList.add(LSTATE[lIdx].cls);
+  }
+
+  function lClick(e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var btn = t.closest('.v-btn');
+    if (!btn || !lIs(btn)) return;
+    // гасим обработчик самой кнопки, свой вариант делает все
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    lIdx = (lIdx + 1) % LSTATE.length;
+    lSend(LSTATE[lIdx].cmd);
+    lPaint();
+  }
+
+  document.addEventListener('mousedown', lClick, true);
+  document.addEventListener('touchstart', lClick, true);
+
+  function ensureLights() { lPaint(); }
+
+  function ensureAll() { ensureLangBtn(); ensureFlipBtn(); ensureBatChip(); ensureLights(); }
 
   function start() {
     ensureAll();

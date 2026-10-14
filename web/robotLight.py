@@ -173,7 +173,7 @@ class Adeept_SPI_LedPixel(threading.Thread):
         self.colorBreathR = 0
         self.colorBreathG = 0
         self.colorBreathB = 0
-        self.breathSteps = 10
+        self.breathSteps = 60
 
         self.rainbow_r = 0
         self.rainbow_g = 0
@@ -403,20 +403,40 @@ class Adeept_SPI_LedPixel(threading.Thread):
         self.set_all_led_color_data(0,0,0)
         self.__flag.clear()
 
+    def _breathFrame(self, k, subs, dt, last):
+        # Один шаг дыхания. У ленты восемь бит на канал, а цвет тусклый, поэтому
+        # промежуточных яркостей почти нет: при пике 4 доступны только 0..4.
+        # Дробную часть размазываем по подкадрам: держим то нижний уровень, то
+        # верхний, в нужной пропорции. Глаз усредняет и видит ровный переход.
+        r = self.colorBreathR * k / self.breathSteps
+        g = self.colorBreathG * k / self.breathSteps
+        b = self.colorBreathB * k / self.breathSteps
+        for s in range(subs):
+            edge = s / subs
+            level = (int(r) + (1 if r % 1 > edge else 0),
+                     int(g) + (1 if g % 1 > edge else 0),
+                     int(b) + (1 if b % 1 > edge else 0))
+            # Лента держит цвет сама, поэтому пишем только когда значение поменялось.
+            if level != last:
+                self.set_all_led_color(*level)
+                last = level
+            time.sleep(dt)
+        return last
+
     def breathProcessing(self):
+        half = 0.9      # секунд на проход вверх или вниз
+        subs = 16       # подкадров внутри шага, отсюда дробность дизеринга
+        dt = half / self.breathSteps / subs
         while self.lightMode == 'breath':
-            for i in range(0,self.breathSteps):
+            last = None     # ленту могли перекрасить снаружи, пишем заново
+            for i in range(0, self.breathSteps):
                 if self.lightMode != 'breath':
                     break
-                self.set_all_led_color(self.colorBreathR*i/self.breathSteps, self.colorBreathG*i/self.breathSteps, self.colorBreathB*i/self.breathSteps)
-                #self.show()
-                time.sleep(0.03)
-            for i in range(0,self.breathSteps):
+                last = self._breathFrame(i, subs, dt, last)
+            for i in range(0, self.breathSteps):
                 if self.lightMode != 'breath':
                     break
-                self.set_all_led_color(self.colorBreathR-(self.colorBreathR*i/self.breathSteps), self.colorBreathG-(self.colorBreathG*i/self.breathSteps), self.colorBreathB-(self.colorBreathB*i/self.breathSteps))
-                #self.show()
-                time.sleep(0.03)
+                last = self._breathFrame(self.breathSteps - i, subs, dt, last)
     def policeProcessing(self):
         while self.lightMode == 'police':
             for i in range(0,3):

@@ -359,3 +359,25 @@ html {
   margin: 10px 0 4px;
   color: rgba(0, 0, 0, .55);
 }
+
+/* Кнопка «Огни робота»: цвет показывает, какое положение включено. */
+.v-btn.rl-st0 {
+  background: #c62828 !important;
+  border-color: #b71c1c !important;
+  color: #fff !important;
+}
+.v-btn.rl-st1 {
+  background: #1565c0 !important;
+  border-color: #0d47a1 !important;
+  color: #fff !important;
+}
+.v-btn.rl-st2 {
+  background: #64b5f6 !important;
+  border-color: #42a5f5 !important;
+  color: #fff !important;
+}
+.v-btn.rl-st3 {
+  background: #eceff1 !important;
+  border-color: #cfd8dc !important;
+  color: rgba(0, 0, 0, .54) !important;
+}

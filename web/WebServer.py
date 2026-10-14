@@ -123,7 +123,26 @@ def functionSelect(command_input, response):
         WS2812.police()
 
     elif 'policeOff' == command_input:
-        WS2812.breath(70,70,255)
+        WS2812.breath(1,1,4)
+
+    # Огни робота: цикл кнопки в интерфейсе
+    elif 'ledPolice' == command_input:
+        if WS2812_mark:
+            WS2812.police()
+
+    elif 'ledBreath' == command_input:
+        if WS2812_mark:
+            WS2812.breath(1,1,4)
+
+    elif 'ledSteady' == command_input:
+        if WS2812_mark:
+            WS2812.pause()
+            WS2812.set_all_led_color(1,1,4)
+
+    elif 'ledOff' == command_input:
+        if WS2812_mark:
+            WS2812.pause()
+            WS2812.set_all_led_color(0,0,0)
 
     elif 'automatic' == command_input:
         if modeSelect == 'PT':
@@ -440,7 +459,7 @@ if __name__ == '__main__':
         WS2812=robotLight.Adeept_SPI_LedPixel(16, 255)
         if WS2812.check_spi_state() != 0:
             WS2812.start()
-            WS2812.breath(70,70,255)
+            WS2812.breath(1,1,4)
         else:
             WS2812.led_close()
     except KeyboardInterrupt:
