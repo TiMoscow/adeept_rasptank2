@@ -65,10 +65,6 @@ fuc = functions.Functions()
 fuc.setup()
 fuc.start()
 
-# Радару на OLED нужна серва камеры (канал 2) и признак, что робот свободен
-oled_display.set_pan_servo(P_sc)
-oled_display.set_idle_probe(lambda: fuc.functionMode == 'none')
-
 curpath = os.path.realpath(__file__)
 thisPath = "/" + os.path.dirname(curpath)
 

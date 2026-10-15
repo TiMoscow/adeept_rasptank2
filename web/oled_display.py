@@ -63,16 +63,6 @@ def register_provider(key, fn):
     _providers[key] = fn
 
 
-def set_pan_servo(servo):
-    # WebServer отдает серву камеры (канал 2), радар ей сканирует
-    oled_sources.set_pan_servo(servo)
-
-
-def set_idle_probe(fn):
-    # WebServer отдает проверку, что робот не занят своей функцией
-    oled_sources.set_idle_probe(fn)
-
-
 def notify_event(kind):
     # WebServer дергает при команде из веба; сюда же придут препятствие и человек
     oled_sources.push_event(kind)

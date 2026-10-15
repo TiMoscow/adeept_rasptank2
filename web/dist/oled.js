@@ -31,7 +31,7 @@
       batLow: 'Sad when battery below, %',
       sleepAfter: 'Sleep after idle, s',
       obstacleCm: 'Obstacle distance, cm',
-      radarNote: 'Scans with the camera servo, only when the robot is standing still. Watch the OLED.'
+      radarNote: 'Shows what the front distance sensor sees. Watch the OLED.'
     },
     ru: {
       title: 'Дисплей',
@@ -51,7 +51,7 @@
       batLow: 'Грусть при заряде ниже, %',
       sleepAfter: 'Сон после простоя, с',
       obstacleCm: 'Дистанция препятствия, см',
-      radarNote: 'Скан сервой камеры, только когда робот стоит. Смотри на OLED.'
+      radarNote: 'Показывает, что видит дальномер впереди. Смотри на OLED.'
     }
   };
 

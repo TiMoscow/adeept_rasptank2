@@ -42,36 +42,6 @@ def last_activity():
         return _activity
 
 
-# --- покой робота и серва камеры ---
-# WebServer отдает сюда серву камеры (канал 2) и проверку, что робот не занят
-# своей функцией. Радар крутит серву только когда робот стоит.
-
-_pan_servo = None
-_idle_probe = None
-IDLE_SEC = 1.5
-
-
-def set_pan_servo(servo):
-    global _pan_servo
-    _pan_servo = servo
-
-
-def set_idle_probe(fn):
-    global _idle_probe
-    _idle_probe = fn
-
-
-def _robot_idle():
-    if _idle_probe is not None:
-        try:
-            if not _idle_probe():
-                return False
-        except Exception:
-            pass
-    # команды из веба тоже считаем движением
-    return (time.time() - last_activity()) > IDLE_SEC
-
-
 # --- дальномер ---
 
 def read_distance():
@@ -169,48 +139,21 @@ class FaceWatcher(_Worker):
 
 
 class RadarScanner(_Worker):
-    # Крутит серву камеры (канал 2), пока робот стоит, и мерит по углам.
-    # В движении серву не трогаем, показываем последний замер вперед.
-    ANGLES = [-60, -45, -30, -15, 0, 15, 30, 45, 60]
+    # Мерит дальномер, который смотрит вперед вместе с камерой. Серву не
+    # крутим: скан ей только мешает и ломает вид с камеры. Точка одна,
+    # по центру экрана.
+    PERIOD = 0.5
 
     def stop(self):
         super().stop()
-        # вернуть серву в центр, чтобы камера не осталась повернутой
-        if _pan_servo is not None:
-            try:
-                _pan_servo.moveAngle(2, 0)
-            except Exception:
-                pass
 
     def run(self):
         global _radar_points, _radar_updated
         while not self._stop.is_set():
-            if _pan_servo is None or not _robot_idle():
-                # робот занят: сервой не крутим, только замер вперед
-                with _radar_lock:
-                    _radar_points = [(0, read_distance())]
-                    _radar_updated = time.time()
-                self._stop.wait(0.5)
-                continue
-            pts = []
-            for a in self.ANGLES:
-                if self._stop.is_set():
-                    break
-                try:
-                    _pan_servo.moveAngle(2, a)
-                except Exception:
-                    pass
-                self._stop.wait(0.22)
-                pts.append((a, read_distance()))
-            try:
-                _pan_servo.moveAngle(2, 0)
-            except Exception:
-                pass
-            self._stop.wait(0.15)
             with _radar_lock:
-                _radar_points = pts
+                _radar_points = [(0, read_distance())]
                 _radar_updated = time.time()
-            self._stop.wait(0.5)
+            self._stop.wait(self.PERIOD)
 
 
 # --- менеджер наблюдателей: держит поднятыми только нужные ---
