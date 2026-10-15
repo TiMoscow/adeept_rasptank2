@@ -146,6 +146,26 @@ def camera_flip():
         camera_opencv.flip_set(not camera_opencv.flip180)
     return {"flip": int(camera_opencv.flip180)}
 
+@app.route('/api/system/restart', methods=['POST'])
+def system_restart():
+    # Перезагрузка контейнера. Сначала отвечаем клиенту, через секунду гасим
+    # моторы (чтобы робот не уехал) и выходим из процесса PID 1.
+    #
+    # Сигналом тут не обойтись: PID 1 в контейнере ядро не убивает штатными
+    # сигналами без явного обработчика (защита init-процесса), проверено на
+    # SIGTERM и снаружи через docker kill. Поэтому выходим через os._exit.
+    # Docker по политике restart: unless-stopped поднимет контейнер заново,
+    # docker.sock для этого не нужен.
+    def _die():
+        try:
+            import move
+            move.motorStop()
+        except Exception:
+            pass
+        os._exit(0)
+    threading.Timer(1.0, _die).start()
+    return {"ok": True}
+
 def _photo_fail(e):
     if isinstance(e, photos.PhotoError):
         return {"ok": False, "error": str(e)}, e.status
