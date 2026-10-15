@@ -103,8 +103,30 @@ class ServoCtrl(threading.Thread):
 
     def moveInit(self):
         self.scMode = 'init'
+        # стартуем от реального положения серв, а не от 90 в лоб.
+        # иначе первый же set_angle это резкий прыжок к целевой позиции
+        startPos = {}
         for i in range(0,servo_num):
-            self.set_angle(i,self.initPos[i])
+            cur = self.readAngle(i)
+            if cur is None:
+                cur = float(self.initPos[i])
+            startPos[i] = cur
+            self.lastPos[i] = int(round(cur))
+            self.nowPos[i] = int(round(cur))
+            self.bufferPos[i] = float(cur)
+            self.goalPos[i] = self.initPos[i]
+
+        far = max(abs(startPos[i] - self.initPos[i]) for i in range(0,servo_num))
+        if far >= 1:
+            # плавно за scTime секунд, scSteps шагов
+            for s in range(1, self.scSteps + 1):
+                for i in range(0,servo_num):
+                    pos = startPos[i] + (self.initPos[i] - startPos[i]) * s / self.scSteps
+                    self.nowPos[i] = int(round(pos))
+                    self.set_angle(i, self.nowPos[i])
+                time.sleep(self.scTime / self.scSteps)
+
+        for i in range(0,servo_num):
             self.lastPos[i] = self.initPos[i]
             self.nowPos[i] = self.initPos[i]
             self.bufferPos[i] = float(self.initPos[i])
@@ -116,9 +138,29 @@ class ServoCtrl(threading.Thread):
         if initInput > self.minPos[ID] and initInput < self.maxPos[ID]:
             self.initPos[ID] = initInput
             if moveTo:
-                self.set_angle(ID,self.initPos[ID])
+                self.moveToAngle(ID, self.initPos[ID])
         else:
             print('initPos Value Error.')
+
+
+    def moveToAngle(self, ID, angle):
+        # плавно ведем один канал к углу от его текущего положения
+        cur = self.readAngle(ID)
+        if cur is None:
+            cur = float(self.nowPos[ID])
+        if abs(cur - angle) >= 1:
+            for s in range(1, self.scSteps + 1):
+                pos = cur + (angle - cur) * s / self.scSteps
+                self.nowPos[ID] = int(round(pos))
+                self.set_angle(ID, self.nowPos[ID])
+                time.sleep(self.scTime / self.scSteps)
+        else:
+            self.set_angle(ID, int(angle))
+        self.lastPos[ID] = int(angle)
+        self.nowPos[ID] = int(angle)
+        self.bufferPos[ID] = float(angle)
+        self.goalPos[ID] = int(angle)
+        self.pause()
 
 
     def moveServoInit(self, ID):
@@ -294,6 +336,27 @@ class ServoCtrl(threading.Thread):
         self.goalPos[ID] = PWM_input
         self.set_angle(ID, PWM_input)
         self.pause()
+
+
+    def readAngle(self, ID):
+        # текущее положение канала лежит в регистрах PCA9685 OFF_L/OFF_H.
+        # при рестарте контейнера чип держит последние позиции, и по ним
+        # можно понять, откуда серва поедет, чтобы не дернуть ее рывком
+        try:
+            reg = 0x06 + 4 * ID + 2
+            buf = bytearray(2)
+            self.i2c.writeto_then_readfrom(0x5f, bytes([reg]), buf)
+            ticks = ((buf[1] << 8) | buf[0]) & 0x0FFF
+            if ticks == 0 or ticks >= 4095:
+                return None
+            pulse_us = ticks * 1000000.0 / (50 * 4096)
+            angle = (pulse_us - 500) / (2400 - 500) * 180
+            if angle < 0 or angle > 180:
+                return None
+            return angle
+        except Exception as e:
+            print('readAngle error:', e)
+            return None
 
 
     def run(self):
