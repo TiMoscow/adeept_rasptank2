@@ -301,15 +301,13 @@
     }).catch(function () { /* связи нет: держим прошлое */ });
   }
 
+  // сидим сразу под панелью фото (обе в конце .controll-area, после сетки
+  // блоков); если фото еще нет — сразу за сеткой (.row — класс строки Vuetify)
   function ensure() {
-    var video = document.querySelector('.vedio-wrapper');
-    if (!video) { return; }
-    var sheet = video.closest ? video.closest('.mod-sheet') : null;
-    if (!sheet) { return; }
-    // сидим под панелью фото, иначе под кнопкой переворота
-    var anchor = sheet.querySelector('#photo-panel') ||
-                 sheet.querySelector('#cam-flip-btn') ||
-                 sheet.querySelector('.mod-wrapper');
+    var area = document.querySelector('.controll-area');
+    if (!area) { return; }
+    var photo = document.getElementById('photo-panel');
+    var anchor = (photo && photo.parentElement === area) ? photo : area.querySelector('.row');
     if (!anchor) { return; }
 
     var l = curLang();
@@ -319,7 +317,7 @@
       data = null;
     }
     if (!panel) { build(); }
-    if (panel.parentElement === sheet && panel.previousElementSibling === anchor) { return; }
+    if (panel.parentElement === area && panel.previousElementSibling === anchor) { return; }
     anchor.insertAdjacentElement('afterend', panel);
   }
 

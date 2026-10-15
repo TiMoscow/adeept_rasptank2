@@ -1,6 +1,8 @@
 /* Панель «Фото и съемка по расписанию» для веб-интерфейса RaspTank.
-   Вставляется под кнопкой «180°», как и сама кнопка, через MutationObserver:
-   фронтенд собран Vue, исходников у нас нет.
+   Вставляется в конец .controll-area, сразу после сетки блоков, через
+   MutationObserver: фронтенд собран Vue, исходников у нас нет.
+   Раньше панель вешалась под кнопку «180°» внутри карточки видео — карточка
+   росла, и управление уезжало вниз. Теперь кнопки управления ближе.
 
    Язык панели свой, на EN/RU. Следим за localStorage['lang'], который
    переключает lang.js, и пересобираем панель при смене языка. */
@@ -500,13 +502,14 @@
     poll();
   }
 
+  // панель живет в конце .controll-area, сразу за сеткой блоков (строка Vuetify
+  // имеет класс .row, не .v-row). сетку находим как первый .row внутри
+  // controll-area: внешняя строка идет в документе раньше внутренних innerRow
   function ensure() {
-    var video = document.querySelector('.vedio-wrapper');
-    if (!video) { return; }
-    var sheet = video.closest('.mod-sheet');
-    if (!sheet) { return; }
-    var anchor = sheet.querySelector('#cam-flip-btn') || sheet.querySelector('.mod-wrapper');
-    if (!anchor) { return; }
+    var area = document.querySelector('.controll-area');
+    if (!area) { return; }
+    var grid = area.querySelector('.row');
+    if (!grid) { return; }
     var l = curLang();
     if (langCache !== l) {
       langCache = l;
@@ -516,8 +519,8 @@
       running = false;
     }
     if (!panel) { build(); }
-    if (panel.parentElement === sheet && panel.previousElementSibling === anchor) { return; }
-    anchor.insertAdjacentElement('afterend', panel);
+    if (panel.parentElement === area && panel.previousElementSibling === grid) { return; }
+    grid.insertAdjacentElement('afterend', panel);
   }
 
   function schedule() {
