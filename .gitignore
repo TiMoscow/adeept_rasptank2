@@ -9,3 +9,5 @@ __pycache__/
 .timelapse.json
 .timelapse.json.tmp
 photos/
+.servo_state.json
+.servo_state.json.tmp

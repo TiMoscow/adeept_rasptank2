@@ -9,6 +9,9 @@ import busio
 from adafruit_motor import servo
 from adafruit_pca9685 import PCA9685
 import threading
+import json
+import os
+import atexit
 
 
 
@@ -34,6 +37,100 @@ init_pwm7 = 90
 servo_num = 8
 i2c = None
 pwm_servo = None
+
+# ---------------------------------------------------------------------------
+# Память о положении серв для плавного старта.
+# У серв нет обратной связи: после обесточивания чип PCA9685 забывает углы.
+# Поэтому последний угол, отправленный каждому каналу, хранится в файле.
+# ---------------------------------------------------------------------------
+STATE_FILE = os.environ.get('SERVO_STATE_FILE') or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '.servo_state.json')
+STATE_SAVE_INTERVAL = 0.2   # сек: как часто писать файл, если углы менялись
+START_MAX_SPEED = 40.0      # град/сек: предел скорости серв при плавном старте
+START_STEP_TIME = 0.02      # сек: один шаг рампы = один период PWM 50 Гц
+START_HOLD_TIME = 0.3       # сек: пауза после первого импульса
+
+_state_lock = threading.Lock()
+_state_dirty = False
+_state_stop = threading.Event()
+
+
+def _load_state():
+    # Возвращает список из servo_num значений: угол 0..180 или None (неизвестно).
+    # Любая ошибка (нет файла, битый JSON, неверная длина) дает список из None.
+    unknown = [None] * servo_num
+    try:
+        with open(STATE_FILE, 'r') as f:
+            data = json.load(f)
+        angles = data.get('angles')
+        if not isinstance(angles, list) or len(angles) != servo_num:
+            return unknown
+        result = []
+        for a in angles:
+            if isinstance(a, (int, float)) and not isinstance(a, bool) and 0 <= a <= 180:
+                result.append(float(a))
+            else:
+                result.append(None)
+        return result
+    except Exception:
+        return unknown
+
+
+_last_cmd = _load_state()
+
+
+def _write_state_file(angles):
+    # Атомарная запись: временный файл, fsync, переименование, fsync каталога.
+    tmp = STATE_FILE + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump({'angles': angles}, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, STATE_FILE)
+    try:
+        dir_fd = os.open(os.path.dirname(STATE_FILE) or '.', os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    except OSError:
+        pass
+
+
+def flush_state():
+    # Сохраняет углы в файл, если они менялись с прошлого сохранения.
+    global _state_dirty
+    with _state_lock:
+        if not _state_dirty:
+            return
+        snapshot = list(_last_cmd)
+        _state_dirty = False
+    try:
+        _write_state_file(snapshot)
+    except Exception as e:
+        print('servo state save error:', e)
+        with _state_lock:
+            _state_dirty = True
+
+
+def _remember_angle(ID, angle):
+    # Запоминает последний угол канала. Изменения меньше 0.05 градуса игнорируются.
+    global _state_dirty
+    with _state_lock:
+        old = _last_cmd[ID]
+        if old is None or abs(old - angle) >= 0.05:
+            _last_cmd[ID] = float(angle)
+            _state_dirty = True
+
+
+def _state_writer():
+    while not _state_stop.wait(STATE_SAVE_INTERVAL):
+        flush_state()
+
+
+threading.Thread(target=_state_writer, name='servo-state-writer', daemon=True).start()
+atexit.register(flush_state)
+
 
 class ServoCtrl(threading.Thread):
 
@@ -89,6 +186,7 @@ class ServoCtrl(threading.Thread):
     def set_angle(self,ID, angle):
         servo_angle = servo.Servo(self.pwm_servo.channels[ID], min_pulse=500, max_pulse=2400,actuation_range=180)
         servo_angle.angle = angle
+        _remember_angle(ID, angle)
 
   
     def pause(self):
@@ -103,30 +201,50 @@ class ServoCtrl(threading.Thread):
 
     def moveInit(self):
         self.scMode = 'init'
-        # стартуем от реального положения серв, а не от 90 в лоб.
-        # иначе первый же set_angle это резкий прыжок к целевой позиции
-        startPos = {}
-        for i in range(0,servo_num):
+        # 1. Откуда стартует каждая серва. Приоритет сверху вниз:
+        #    а) регистры чипа: если чип не обесточивался, он продолжает выдавать
+        #       последний импульс, и это истинное положение;
+        #    б) файл .servo_state.json: последний угол, отправленный до выключения;
+        #    в) ничего не известно: берем целевой угол (первый импульс будет
+        #       рывком, избежать этого нельзя).
+        startPos = []
+        for i in range(0, servo_num):
             cur = self.readAngle(i)
             if cur is None:
+                with _state_lock:
+                    cur = _last_cmd[i]
+            if cur is None:
                 cur = float(self.initPos[i])
-            startPos[i] = cur
-            self.lastPos[i] = int(round(cur))
-            self.nowPos[i] = int(round(cur))
-            self.bufferPos[i] = float(cur)
+            startPos.append(float(cur))
+
+        # 2. Удержание: первый импульс на каждый канал равен стартовому углу.
+        #    Если серва реально стоит там, она не двигается.
+        for i in range(0, servo_num):
+            self.set_angle(i, startPos[i])
+            self.nowPos[i] = int(round(startPos[i]))
+            self.lastPos[i] = int(round(startPos[i]))
+            self.bufferPos[i] = float(startPos[i])
             self.goalPos[i] = self.initPos[i]
+        time.sleep(START_HOLD_TIME)
 
-        far = max(abs(startPos[i] - self.initPos[i]) for i in range(0,servo_num))
+        # 3. Плавный переход к целевому углу: мягкий старт и мягкая остановка.
+        #    Пиковая скорость 1.5 * far / duration не превышает START_MAX_SPEED.
+        far = max(abs(startPos[i] - self.initPos[i]) for i in range(0, servo_num))
         if far >= 1:
-            # плавно за scTime секунд, scSteps шагов
-            for s in range(1, self.scSteps + 1):
-                for i in range(0,servo_num):
-                    pos = startPos[i] + (self.initPos[i] - startPos[i]) * s / self.scSteps
+            duration = max(self.scTime, 1.5 * far / START_MAX_SPEED)
+            steps = max(self.scSteps, int(duration / START_STEP_TIME))
+            for s in range(1, steps + 1):
+                t = float(s) / steps
+                k = t * t * (3.0 - 2.0 * t)
+                for i in range(0, servo_num):
+                    pos = startPos[i] + (self.initPos[i] - startPos[i]) * k
                     self.nowPos[i] = int(round(pos))
-                    self.set_angle(i, self.nowPos[i])
-                time.sleep(self.scTime / self.scSteps)
+                    self.set_angle(i, pos)
+                time.sleep(duration / steps)
 
-        for i in range(0,servo_num):
+        # 4. Финиш: точный целевой угол и согласованное внутреннее состояние.
+        for i in range(0, servo_num):
+            self.set_angle(i, float(self.initPos[i]))
             self.lastPos[i] = self.initPos[i]
             self.nowPos[i] = self.initPos[i]
             self.bufferPos[i] = float(self.initPos[i])
@@ -143,11 +261,22 @@ class ServoCtrl(threading.Thread):
             print('initPos Value Error.')
 
 
-    def moveToAngle(self, ID, angle):
-        # плавно ведем один канал к углу от его текущего положения
-        cur = self.readAngle(ID)
+    def knownAngle(self, ID):
+        # Лучшая оценка текущего угла канала ID, по порядку:
+        # последний импульс этого процесса или сохраненный в файле,
+        # затем регистры чипа, затем nowPos.
+        with _state_lock:
+            cur = _last_cmd[ID]
+        if cur is None:
+            cur = self.readAngle(ID)
         if cur is None:
             cur = float(self.nowPos[ID])
+        return cur
+
+
+    def moveToAngle(self, ID, angle):
+        # плавно ведем один канал к углу от его текущего положения
+        cur = self.knownAngle(ID)
         if abs(cur - angle) >= 1:
             for s in range(1, self.scSteps + 1):
                 pos = cur + (angle - cur) * s / self.scSteps
